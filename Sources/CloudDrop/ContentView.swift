@@ -1,9 +1,13 @@
+import ServiceManagement
 import SwiftUI
 
 struct ContentView: View {
+    var updateChecker: UpdateChecker
+    @Binding var launchAtLogin: Bool
     @Environment(AppState.self) private var appState
     @State private var selectedTab = 0
     @State private var showSettings = false
+    @State private var showCopied = false
 
     private var canUpload: Bool {
         !appState.selectedBucket.isEmpty && !appState.publicURLBase.isEmpty
@@ -55,18 +59,40 @@ struct ContentView: View {
             Spacer()
             Divider()
             HStack {
-                Spacer()
                 Button {
-                    NSApplication.shared.terminate(nil)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(appVersion, forType: .string)
+                    showCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopied = false }
                 } label: {
-                    Image(systemName: "power")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                    Image(systemName: showCopied ? "checkmark.circle" : "info.circle")
+                        .contentTransition(.symbolEffect(.replace))
                 }
-                .buttonStyle(.plain)
+                .help(showCopied ? "Copied!" : "Version \(appVersion)")
+
+                Spacer()
+
+                Button {
+                    launchAtLogin.toggle()
+                    do {
+                        if launchAtLogin { try SMAppService.mainApp.register() }
+                        else { try SMAppService.mainApp.unregister() }
+                    } catch { launchAtLogin.toggle() }
+                } label: {
+                    Image(systemName: launchAtLogin ? "checkmark.circle.fill" : "circle")
+                }
+                .help("Launch at Login")
+
+                Spacer()
+
+                Button { NSApplication.shared.terminate(nil) } label: {
+                    Image(systemName: "power")
+                }
                 .help("Quit")
             }
-            .padding(.horizontal, 16)
+            .buttonStyle(.plain)
+            .font(.system(size: 13))
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
         }
     }
@@ -483,29 +509,92 @@ struct ContentView: View {
 
     // MARK: - Footer
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    }
+
     private var footerBar: some View {
-        HStack {
+        VStack(spacing: 0) {
             if !appState.recentUploads.isEmpty {
-                Button("Clear History") {
-                    appState.clearRecentUploads()
-                }
-                .buttonStyle(.plain)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            }
-            Spacer()
-            Button {
-                NSApplication.shared.terminate(nil)
-            } label: {
-                Image(systemName: "power")
-                    .font(.system(size: 10))
+                HStack {
+                    Button("Clear History") {
+                        appState.clearRecentUploads()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .padding(.bottom, 2)
+            }
+            HStack {
+                if updateChecker.updateAvailable {
+                    switch updateChecker.updateState {
+                    case .idle:
+                        Button { updateChecker.performUpdate() } label: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        .help("Update to v\(updateChecker.latestVersion ?? "")")
+
+                    case .downloading(let progress):
+                        ProgressView(value: progress)
+                            .progressViewStyle(.circular)
+                            .controlSize(.small)
+                            .help("Downloading update... \(Int(progress * 100))%")
+
+                    case .installing:
+                        ProgressView()
+                            .controlSize(.small)
+                            .help("Installing update...")
+
+                    case .failed:
+                        Button { updateChecker.openReleasePage() } label: {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                        .help("Update failed — click to open release page")
+                    }
+                } else {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(appVersion, forType: .string)
+                        showCopied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showCopied = false }
+                    } label: {
+                        Image(systemName: showCopied ? "checkmark.circle" : "info.circle")
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    .help(showCopied ? "Copied!" : "Version \(appVersion)")
+                }
+
+                Spacer()
+
+                Button {
+                    launchAtLogin.toggle()
+                    do {
+                        if launchAtLogin { try SMAppService.mainApp.register() }
+                        else { try SMAppService.mainApp.unregister() }
+                    } catch { launchAtLogin.toggle() }
+                } label: {
+                    Image(systemName: launchAtLogin ? "checkmark.circle.fill" : "circle")
+                }
+                .help("Launch at Login")
+
+                Spacer()
+
+                Button { NSApplication.shared.terminate(nil) } label: {
+                    Image(systemName: "power")
+                }
+                .help("Quit")
             }
             .buttonStyle(.plain)
-            .help("Quit")
+            .font(.system(size: 13))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
     }
 
     // MARK: - Actions
