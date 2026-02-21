@@ -13,6 +13,10 @@ dev:
 build:
     swift build -c release
 
+# Generate app icon
+icon:
+    swift Scripts/generate-icon.swift
+
 # Create .app bundle from release build
 bundle: build
     rm -rf {{bundle_dir}}
@@ -20,6 +24,7 @@ bundle: build
     mkdir -p {{bundle_dir}}/Contents/Resources
     cp {{build_dir}}/{{app_name}} {{bundle_dir}}/Contents/MacOS/
     cp Resources/Info.plist {{bundle_dir}}/Contents/
+    cp Resources/AppIcon.icns {{bundle_dir}}/Contents/Resources/
     codesign --force --sign - --entitlements Resources/CloudDrop.entitlements {{bundle_dir}}
 
 # Run the bundled app
