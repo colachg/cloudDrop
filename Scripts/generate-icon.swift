@@ -21,100 +21,116 @@ let sizes: [(name: String, size: Int)] = [
 ]
 
 // --- Drawing ---
+// Draws the cloudDrop icon: cloud outline + upload arrow with blue-to-cyan gradient on white.
+
+func cloudPath(s: CGFloat, cx: CGFloat, cy: CGFloat) -> CGPath {
+    let cloud = CGMutablePath()
+
+    let baseL = cx - s * 0.30
+    let baseR = cx + s * 0.30
+    let baseY = cy - s * 0.12
+    let cornerR = s * 0.05
+
+    cloud.move(to: CGPoint(x: baseL + cornerR, y: baseY))
+    cloud.addLine(to: CGPoint(x: baseR - cornerR, y: baseY))
+
+    cloud.addCurve(to: CGPoint(x: baseR + s * 0.02, y: baseY + s * 0.10),
+                   control1: CGPoint(x: baseR, y: baseY),
+                   control2: CGPoint(x: baseR + s * 0.02, y: baseY + s * 0.03))
+
+    cloud.addCurve(to: CGPoint(x: cx + s * 0.20, y: cy + s * 0.14),
+                   control1: CGPoint(x: baseR + s * 0.02, y: cy + s * 0.04),
+                   control2: CGPoint(x: cx + s * 0.28, y: cy + s * 0.10))
+
+    cloud.addCurve(to: CGPoint(x: cx, y: cy + s * 0.28),
+                   control1: CGPoint(x: cx + s * 0.16, y: cy + s * 0.24),
+                   control2: CGPoint(x: cx + s * 0.10, y: cy + s * 0.28))
+
+    cloud.addCurve(to: CGPoint(x: cx - s * 0.22, y: cy + s * 0.10),
+                   control1: CGPoint(x: cx - s * 0.10, y: cy + s * 0.28),
+                   control2: CGPoint(x: cx - s * 0.16, y: cy + s * 0.18))
+
+    cloud.addCurve(to: CGPoint(x: baseL, y: baseY + cornerR),
+                   control1: CGPoint(x: cx - s * 0.30, y: cy - s * 0.01),
+                   control2: CGPoint(x: baseL, y: cy - s * 0.01))
+
+    cloud.addQuadCurve(to: CGPoint(x: baseL + cornerR, y: baseY),
+                       control: CGPoint(x: baseL, y: baseY))
+
+    cloud.closeSubpath()
+    return cloud
+}
+
+func arrowPath(s: CGFloat, cx: CGFloat, cy: CGFloat) -> CGPath {
+    let arrowCY = cy + s * 0.02
+    let arrowH = s * 0.20
+    let headW  = s * 0.16
+    let headH  = s * 0.09
+    let shaftW = s * 0.058
+    let shaftR = s * 0.012
+
+    let arrowBottom = arrowCY - arrowH * 0.45
+    let arrowTop = arrowCY + arrowH * 0.55
+
+    let arrow = CGMutablePath()
+
+    arrow.move(to: CGPoint(x: cx, y: arrowTop))
+    arrow.addLine(to: CGPoint(x: cx + headW / 2, y: arrowTop - headH))
+    arrow.addLine(to: CGPoint(x: cx + shaftW / 2, y: arrowTop - headH))
+    arrow.addLine(to: CGPoint(x: cx + shaftW / 2, y: arrowBottom + shaftR))
+    arrow.addQuadCurve(to: CGPoint(x: cx + shaftW / 2 - shaftR, y: arrowBottom),
+                       control: CGPoint(x: cx + shaftW / 2, y: arrowBottom))
+    arrow.addLine(to: CGPoint(x: cx - shaftW / 2 + shaftR, y: arrowBottom))
+    arrow.addQuadCurve(to: CGPoint(x: cx - shaftW / 2, y: arrowBottom + shaftR),
+                       control: CGPoint(x: cx - shaftW / 2, y: arrowBottom))
+    arrow.addLine(to: CGPoint(x: cx - shaftW / 2, y: arrowTop - headH))
+    arrow.addLine(to: CGPoint(x: cx - headW / 2, y: arrowTop - headH))
+
+    arrow.closeSubpath()
+    return arrow
+}
+
+func drawGradient(in ctx: CGContext, clippedTo path: CGPath, size s: CGFloat) {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let colors = [
+        CGColor(red: 0.00, green: 0.45, blue: 0.95, alpha: 1.0),  // blue
+        CGColor(red: 0.00, green: 0.75, blue: 0.95, alpha: 1.0),  // cyan
+    ] as CFArray
+    guard let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0.0, 1.0]) else { return }
+
+    ctx.saveGState()
+    ctx.addPath(path)
+    ctx.clip()
+    ctx.drawLinearGradient(gradient,
+                           start: CGPoint(x: 0, y: 0),
+                           end: CGPoint(x: s, y: s),
+                           options: [])
+    ctx.restoreGState()
+}
 
 func drawIcon(into ctx: CGContext, pixelSize: Int) {
     let s = CGFloat(pixelSize)
     let rect = CGRect(x: 0, y: 0, width: s, height: s)
 
-    // Rounded-rect clipping (macOS icon shape — ~18.5% corner radius)
-    let cornerRadius = s * 0.185
-    ctx.addPath(CGPath(roundedRect: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
-    ctx.clip()
+    // White background
+    ctx.setFillColor(CGColor.white)
+    ctx.fill(rect)
 
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let cx = s * 0.50
+    let cy = s * 0.46
+    let strokeWidth = s * 0.058
 
-    // Background: deep indigo gradient (bottom-left → top-right)
-    let bgColors = [
-        CGColor(red: 0.06, green: 0.05, blue: 0.20, alpha: 1.0),
-        CGColor(red: 0.14, green: 0.12, blue: 0.38, alpha: 1.0),
-        CGColor(red: 0.20, green: 0.18, blue: 0.50, alpha: 1.0),
-    ] as CFArray
-    if let g = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 0.55, 1.0]) {
-        ctx.drawLinearGradient(g, start: .zero, end: CGPoint(x: s, y: s), options: [])
-    }
+    // Cloud: convert stroke to filled shape, then apply gradient
+    let cloud = cloudPath(s: s, cx: cx, cy: cy)
+    let strokedCloud = cloud.copy(strokingWithWidth: strokeWidth,
+                                   lineCap: .round,
+                                   lineJoin: .round,
+                                   miterLimit: 10)
+    drawGradient(in: ctx, clippedTo: strokedCloud, size: s)
 
-    // Subtle radial glow behind cloud
-    let glowColors = [
-        CGColor(red: 0.30, green: 0.25, blue: 0.65, alpha: 0.3),
-        CGColor(red: 0.15, green: 0.12, blue: 0.40, alpha: 0.0),
-    ] as CFArray
-    if let g = CGGradient(colorsSpace: colorSpace, colors: glowColors, locations: [0.0, 1.0]) {
-        let center = CGPoint(x: s * 0.50, y: s * 0.55)
-        ctx.drawRadialGradient(g, startCenter: center, startRadius: 0,
-                               endCenter: center, endRadius: s * 0.45, options: [])
-    }
-
-    let cloudCX = s * 0.50
-    let cloudCY = s * 0.52
-
-    // Cloud shadow
-    ctx.saveGState()
-    ctx.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.12))
-    drawCloudShape(ctx: ctx, s: s, cx: cloudCX, cy: cloudCY - s * 0.018)
-    ctx.restoreGState()
-
-    // Cloud (white)
-    ctx.setFillColor(CGColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0))
-    drawCloudShape(ctx: ctx, s: s, cx: cloudCX, cy: cloudCY)
-
-    // Upload arrow (orange)
-    drawUploadArrow(ctx: ctx, s: s, cx: cloudCX, cy: cloudCY)
-}
-
-func drawCloudShape(ctx: CGContext, s: CGFloat, cx: CGFloat, cy: CGFloat) {
-    // Cloud built from overlapping ellipses — body + three bumps on top
-
-    // Wide flat body
-    let bw = s * 0.54, bh = s * 0.17
-    ctx.fillEllipse(in: CGRect(x: cx - bw / 2, y: cy - bh * 0.65, width: bw, height: bh))
-
-    // Center bump (tallest)
-    let cr = s * 0.135
-    ctx.fillEllipse(in: CGRect(x: cx - cr, y: cy + s * 0.01, width: cr * 2, height: cr * 2))
-
-    // Left bump
-    let lr = s * 0.095
-    ctx.fillEllipse(in: CGRect(x: cx - s * 0.20 - lr * 0.3, y: cy - s * 0.01, width: lr * 2, height: lr * 2))
-
-    // Right bump
-    let rr = s * 0.105
-    ctx.fillEllipse(in: CGRect(x: cx + s * 0.08, y: cy - s * 0.005, width: rr * 2, height: rr * 2))
-}
-
-func drawUploadArrow(ctx: CGContext, s: CGFloat, cx: CGFloat, cy: CGFloat) {
-    // Cloudflare-orange upward arrow inside the cloud
-    ctx.setFillColor(CGColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1.0))
-
-    // Arrow head (triangle pointing up)
-    let tipY = cy + s * 0.12
-    let headBaseY = tipY - s * 0.10
-    let headHalfW = s * 0.10
-
-    let head = CGMutablePath()
-    head.move(to: CGPoint(x: cx, y: tipY))
-    head.addLine(to: CGPoint(x: cx - headHalfW, y: headBaseY))
-    head.addLine(to: CGPoint(x: cx + headHalfW, y: headBaseY))
-    head.closeSubpath()
-    ctx.addPath(head)
-    ctx.fillPath()
-
-    // Arrow shaft (rounded rect)
-    let shaftW = s * 0.055
-    let shaftTop = headBaseY + s * 0.015
-    let shaftBottom = cy - s * 0.08
-    let shaftRect = CGRect(x: cx - shaftW / 2, y: shaftBottom, width: shaftW, height: shaftTop - shaftBottom)
-    ctx.addPath(CGPath(roundedRect: shaftRect, cornerWidth: shaftW * 0.35, cornerHeight: shaftW * 0.35, transform: nil))
-    ctx.fillPath()
+    // Arrow: filled shape with gradient
+    let arrow = arrowPath(s: s, cx: cx, cy: cy)
+    drawGradient(in: ctx, clippedTo: arrow, size: s)
 }
 
 // --- PNG rendering ---
