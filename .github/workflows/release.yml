@@ -30,6 +30,9 @@ jobs:
       - name: Build release binary
         run: swift build -c release
 
+      - name: Generate app icon
+        run: swift Scripts/generate-icon.swift
+
       - name: Assemble .app bundle
         run: |
           APP="CloudDrop.app"
@@ -37,6 +40,7 @@ jobs:
           mkdir -p "$APP/Contents/Resources"
           cp .build/release/CloudDrop "$APP/Contents/MacOS/CloudDrop"
           cp Resources/Info.plist "$APP/Contents/"
+          cp Resources/AppIcon.icns "$APP/Contents/Resources/"
           codesign --force --sign - --entitlements Resources/CloudDrop.entitlements "$APP"
 
       - name: Create zip

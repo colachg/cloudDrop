@@ -35,6 +35,10 @@ run: bundle
 install: bundle
     cp -R {{bundle_dir}} /Applications/
 
+# Generate changelog
+changelog:
+    git cliff
+
 # Clean build artifacts
 clean:
     rm -rf .build build
